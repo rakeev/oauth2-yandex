@@ -1,0 +1,28 @@
+{
+    "name": "aego/oauth2-yandex",
+    "description": "Yandex provider for league/oauth2-client",
+    "license": "MIT",
+    "authors": [
+        {
+            "name": "Alexey Rakeev",
+            "email": "alexey@rakeev.name"
+        }
+    ],
+    "require": {
+        "php": "~5.4",
+        "league/oauth2-client": "~0.5"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~4.3"
+    },
+    "autoload": {
+        "psr-4": {
+            "Aego\\OAuth2\\Client\\Provider\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Aego\\OAuth2\\Client\\Test\\Provider\\": "test/"
+        }
+    }
+}

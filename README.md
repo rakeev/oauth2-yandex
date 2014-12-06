@@ -1,8 +1,8 @@
 # Yandex OAuth2 client provider
 
 [![Build Status](https://travis-ci.org/rakeev/oauth2-yandex.svg?branch=master)](https://travis-ci.org/rakeev/oauth2-yandex)
-[![Latest Stable Version](https://poser.pugx.org/aego/oauth2-yandex/v/stable.svg)](https://packagist.org/packages/aego/oauth2-yandex)
-[![License](https://poser.pugx.org/aego/oauth2-yandex/license.svg)](https://packagist.org/packages/aego/oauth2-yandex)
+[![Latest Stable Version](https://img.shields.io/packagist/v/aego/oauth2-yandex.svg)](https://packagist.org/packages/aego/oauth2-yandex)
+[![License](https://img.shields.io/packagist/l/aego/oauth2-yandex.svg)](https://packagist.org/packages/aego/oauth2-yandex)
 
 This package provides [Yandex](https://passport.yandex.ru) integration for [OAuth2 Client](https://github.com/thephpleague/oauth2-client) by the League.
 

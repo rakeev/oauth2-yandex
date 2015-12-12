@@ -1,74 +1,156 @@
 <?php
+
 namespace Aego\OAuth2\Client\Test\Provider;
+
+use Aego\OAuth2\Client\Provider\Yandex;
+use Aego\OAuth2\Client\Provider\YandexResourceOwner;
 
 class YandexTest extends \PHPUnit_Framework_TestCase
 {
-    protected $response;
-    protected $provider;
-    protected $token;
+    /**
+     * @var Yandex
+     */
+    private $provider;
+
+    public function testAuthorizationUrl()
+    {
+        $url = $this->provider->getAuthorizationUrl();
+
+        $uri = parse_url($url);
+        parse_str($uri['query'], $query);
+
+        $this->assertEquals('oauth.yandex.ru', $uri['host']);
+        $this->assertEquals('/authorize', $uri['path']);
+
+        $this->assertArrayHasKey('client_id', $query);
+        $this->assertArrayHasKey('response_type', $query);
+        $this->assertArrayHasKey('state', $query);
+        $this->assertEquals('code', $query['response_type']);
+
+        $this->assertNotNull($this->provider->getState());
+    }
+
+    public function testGetBaseAccessTokenUrl()
+    {
+        $url = $this->provider->getBaseAccessTokenUrl([]);
+
+        $this->assertEquals('https://oauth.yandex.ru/token', $url);
+    }
+
+    public function testGetAccessToken()
+    {
+        $response = $this->getMock('Psr\Http\Message\ResponseInterface');
+
+        $response->expects($this->any())
+            ->method('getBody')
+            ->willReturn('{"access_token":"mock_access_token","token_type":"bearer","expires_in":3600}');
+
+        $response->expects($this->any())
+            ->method('getHeader')
+            ->willReturn(['content-type' => 'json']);
+
+        $response->expects($this->any())
+            ->method('getStatusCode')
+            ->willReturn(200);
+
+        $client = $this->getMock('GuzzleHttp\ClientInterface');
+        $this->provider->setHttpClient($client);
+
+        $client->expects($this->once())
+            ->method('send')
+            ->willReturn($response);
+
+        $token = $this->provider->getAccessToken('authorization_code', ['code' => 'mock_authorization_code']);
+
+        $this->assertEquals('mock_access_token', $token->getToken());
+        $this->assertGreaterThan(time(), $token->getExpires());
+        $this->assertNull($token->getRefreshToken());
+        $this->assertNull($token->getResourceOwnerId());
+    }
+
+    /**
+     * @expectedException \League\OAuth2\Client\Provider\Exception\IdentityProviderException
+     * @expectedExceptionCode 400
+     * @expectedExceptionMessage bad_verification_code: Error message
+     */
+    public function testThrowExceptionWhenCouldNotGetAccessToken()
+    {
+        $response = $this->getMock('Psr\Http\Message\ResponseInterface');
+
+        $response->expects($this->any())
+            ->method('getBody')
+            ->willReturn('{"error_description":"Error message","error":"bad_verification_code"}');
+
+        $response->expects($this->any())
+            ->method('getStatusCode')
+            ->willReturn(400);
+
+        $client = $this->getMock('GuzzleHttp\ClientInterface');
+        $this->provider->setHttpClient($client);
+
+        $client->expects($this->once())
+            ->method('send')
+            ->willReturn($response);
+
+        $this->provider->getAccessToken('authorization_code', ['code' => 'mock_authorization_code']);
+    }
+
+    public function testGetResourceOwnerDetailsUrl()
+    {
+        $token = $this->getMockBuilder('League\OAuth2\Client\Token\AccessToken')
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $token->expects($this->once())
+            ->method('getToken')
+            ->willReturn('mock_access_token');
+
+        $url = $this->provider->getResourceOwnerDetailsUrl($token);
+
+        $this->assertEquals('https://login.yandex.ru/info?format=json&oauth_token=mock_access_token', $url);
+    }
+
+    public function testGetResourceOwner()
+    {
+        $response = json_decode('{"first_name":"mock_firstname","last_name":"mock_firstname","display_name":"mock_displayname","emails":["test@yandex.ru","other-test@yandex.ru"],"default_email":"test@yandex.ru","real_name":"Vasya Pupkin","birthday":"1987-03-12","default_avatar_id":"131652443","login":"mock_login","old_social_login":"uid-mmzxrnry","sex":"male","id":"1000034426"}', true);
+
+        $token = $this->getMockBuilder('League\OAuth2\Client\Token\AccessToken')
+            ->disableOriginalConstructor()
+            ->getMock();
+
+        $provider = $this->getMockBuilder(Yandex::class)
+            ->setMethods(array('fetchResourceOwnerDetails'))
+            ->getMock();
+
+        $provider->expects($this->once())
+            ->method('fetchResourceOwnerDetails')
+            ->with($this->identicalTo($token))
+            ->willReturn($response);
+
+        /** @var YandexResourceOwner $resource */
+        $resource = $provider->getResourceOwner($token);
+
+        $this->assertInstanceOf(YandexResourceOwner::class, $resource);
+
+        $this->assertEquals('1000034426', $resource->getId());
+        $this->assertEquals('mock_login', $resource->getNickname());
+        $this->assertEquals('test@yandex.ru', $resource->getEmail());
+        $this->assertEquals('mock_displayname', $resource->getName());
+        $this->assertEquals('mock_firstname', $resource->getFirstName());
+        $this->assertEquals('mock_firstname', $resource->getLastName());
+    }
 
     protected function setUp()
     {
-        $this->response = json_decode('{"id": "12345678", "login": "username", "display_name": "dpname", "sex": "male",'
-            .' "first_name": "\u0418\u043C\u044F", "last_name": "\u0424\u0430\u043C\u0438\u043B\u0438\u044F",'
-            .' "real_name": "\u0418\u043C\u044F \u0424\u0430\u043C\u0438\u043B\u0438\u044F",'
-            .' "emails": ["login@yandex.ru"], "default_email": "login@yandex.ru"}');
-        $this->provider = new \Aego\OAuth2\Client\Provider\Yandex([
-            'clientId' => 'mock',
-            'clientSecret' => 'mock_secret',
+        $this->provider = new Yandex([
+            'clientId' => 'mock_client_id',
+            'clientSecret' => 'mock_client_secret',
             'redirectUri' => 'none',
         ]);
-        $this->token = new \League\OAuth2\Client\Token\AccessToken([
-            'access_token' => 'mock_token',
-        ]);
     }
 
-    public function testUrlUserDetails()
+    protected function tearDown()
     {
-        $query = parse_url($this->provider->urlUserDetails($this->token), PHP_URL_QUERY);
-        parse_str($query, $param);
-
-        $this->assertEquals($this->token->accessToken, $param['oauth_token']);
-    }
-
-    public function testUserDetails()
-    {
-        $user = $this->provider->userDetails($this->response, $this->token);
-        $this->assertInstanceOf('League\\OAuth2\\Client\\Entity\\User', $user);
-        $this->assertEquals($this->response->id, $user->uid);
-        $this->assertEquals($this->response->login, $user->nickname);
-        $this->assertEquals($this->response->default_email, $user->email);
-        $this->assertEquals($this->response->sex, $user->gender);
-        $this->assertEquals('Имя', $user->firstName);
-        $this->assertEquals('Фамилия', $user->lastName);
-        $this->assertEquals('Имя Фамилия', $user->name);
-    }
-
-    public function testUserDetailsEmpty()
-    {
-        unset($this->response->real_name, $this->response->first_name, $this->response->last_name);
-        unset($this->response->default_email, $this->response->emails, $this->response->sex);
-        $user = $this->provider->userDetails($this->response, $this->token);
-        $this->assertEmpty($user->gender);
-        $this->assertEmpty($user->email);
-        $this->assertEmpty($user->name);
-    }
-
-    public function testUserUid()
-    {
-        $uid = $this->provider->userUid($this->response, $this->token);
-        $this->assertEquals($this->response->id, $uid);
-    }
-
-    public function testUserEmail()
-    {
-        $email = $this->provider->userEmail($this->response, $this->token);
-        $this->assertEquals($this->response->default_email, $email);
-    }
-
-    public function testUserScreenName()
-    {
-        $name = $this->provider->userScreenName($this->response, $this->token);
-        $this->assertEquals([$this->response->first_name, $this->response->last_name], $name);
+        $this->provider = null;
     }
 }

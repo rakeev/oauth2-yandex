@@ -77,6 +77,16 @@ class YandexResourceOwner implements ResourceOwnerInterface
     }
 
     /**
+     * Gets the gender.
+     *
+     * @return string|null
+     */
+    public function getGender()
+    {
+        return $this->response['sex'] ?: null;
+    }
+
+    /**
      * {@inheritdoc}
      */
     public function toArray()

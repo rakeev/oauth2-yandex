@@ -89,6 +89,14 @@ class YandexResourceOwner implements ResourceOwnerInterface
     /**
      * {@inheritdoc}
      */
+    public function getClientId()
+    {
+        return $this->response['client_id'] ?: null;
+    }
+    
+    /**
+     * {@inheritdoc}
+     */
     public function toArray()
     {
         return $this->response;
